@@ -15,7 +15,7 @@ function render(){nav();let el=document.getElementById('app');el.innerHTML=({Das
 function dashboard(){let i=currentIndex(),w=state.weeks[i],prev=state.weeks[i-1],logged=actualWeekMiles(i);let last=allRuns().sort((a,b)=>b.date.localeCompare(a.date))[0];return `<h1>Your training dashboard</h1><p class="muted">Sub-2 half marathon → first 50K · Training starts November 2, 2026</p><div class="grid"><div class="card"><div class="muted small">This week</div><div class="stat">${fmt(logged)} <span class="small">mi</span></div><div class="muted small">${w?fmt(w.plannedMiles)+' planned':'Not generated'}</div></div><div class="card"><div class="muted small">Runs logged</div><div class="stat">${allRuns().length}</div><div class="muted small">All-time</div></div><div class="card"><div class="muted small">Last run</div><div class="stat">${last?fmt(last.distance):'—'} <span class="small">mi</span></div><div class="muted small">${last?esc(last.date):'Add your first activity'}</div></div></div><div class="card"><h2>Next steps</h2>${w?`<p><strong>Week ${i+1}</strong> · ${dateISO(w.start)} · ${esc(w.reason)}</p><div class="bar"><div class="fill" style="width:${Math.min(100,logged/w.plannedMiles*100)||0}%"></div></div><div class="actions"><button class="primary" onclick="view='Calendar';render()">Open this week</button><button class="secondary" onclick="view='Activities';render()">Log / upload run</button></div>`:`<p>Week ${i+1} has not been approved yet. Review the previous week before advancing.</p><button class="primary" onclick="view='Plan';render()">Review next week</button>`}</div><div class="card"><h2>Training priorities</h2><div class="timeline"><span>Nov–Dec · Consistency + ankle</span><span>Jan–Apr · Half marathon speed</span><span>May–Aug · Ultra endurance</span><span>Sep–Oct · Peak + taper</span></div><p class="muted">Four runs weekly · Saturday long run · Two strength sessions. Adjustments are rules-based, not an AI medical assessment.</p></div>${state.settings.ankle==='monitor'?`<div class="notice"><strong>Ankle caution:</strong> Recent left outer-ankle pain. Keep running easy only if walking is comfortable and pain is not returning. Stop if pain increases or changes your stride.</div>`:''}`}
 function calendar(){let i=Number(window.selectedWeek??currentIndex());window.selectedWeek=i;let w=state.weeks[i];return `<div class="row"><div><h1>Weekly calendar</h1><p class="muted">${dateISO(weekStart(i))} – ${dateISO(plus(weekStart(i),6))}</p></div><div class="actions"><button class="secondary" onclick="selectedWeek=Math.max(0,selectedWeek-1);render()">← Earlier</button><button class="secondary" onclick="selectedWeek++;render()">Later →</button></div></div>${!w?`<div class="card empty">This week has not been approved. <button class="primary" onclick="view='Plan';render()">Go to plan</button></div>`:`<div class="card"><div class="row"><h2>Week ${i+1} · ${fmt(w.plannedMiles)} planned miles</h2><span class="pill">${esc(w.status)}</span></div>${w.workouts.map(x=>`<div class="workout ${x.done?'done':''}"><input type="checkbox" ${x.done?'checked':''} onchange="toggleWorkout(${i},'${x.id}',this.checked)" aria-label="Complete ${esc(x.title)}"><div class="body"><strong>${dateISO(x.date)} · ${esc(x.title)} ${x.target?'· '+fmt(x.target)+' mi':''}</strong><div class="muted small">${esc(x.desc)}</div>${x.type==='run'?`<div class="actions"><button class="secondary btnsm" onclick="showLog('${x.date}','${x.id}')">Log this run</button></div>`:''}${x.type==='strength'?`<div class="actions"><button class="secondary btnsm" onclick="showStrength('${x.date}','${x.id}','${x.title.includes('B')?'B':'A'}')">Record sets / reps</button></div>`:''}</div></div>`).join('')}</div>`}`}
 function toggleWorkout(i,id,checked){let w=state.weeks[i];w.workouts.find(x=>x.id===id).done=checked;save().then(render)}
-function activities(){let logs=allRuns().sort((a,b)=>b.date.localeCompare(a.date));return `<h1>Runs & Garmin uploads</h1><p class="muted">Import FIT, TCX, GPX or Garmin activity CSV exports. Review parsed details before saving. No Garmin login or automatic cloud sync is included.</p><div class="card"><h2>Import a workout file</h2><input id="upload" type="file" accept=".fit,.tcx,.gpx,.csv,application/xml,text/csv" onchange="handleFile(this.files[0])"><div class="small muted">FIT summary extraction supports standard Garmin FIT activity/session fields; unusual files may require manual correction. GPX usually lacks total duration and heart-rate summaries unless extensions are present.</div><div class="actions"><button class="primary" onclick="showLog()">+ Log run manually</button></div></div><div class="card"><h2>Run history</h2>${logs.length?logs.map(l=>`<div class="workout"><div class="body"><strong>${dateISO(l.date)} · ${fmt(l.distance)} mi</strong><div class="muted small">${l.duration||'—'} · ${l.hr||'—'} avg HR · RPE ${l.rpe||'—'}/10 · Pain ${l.pain??'—'}/10 · ${esc(l.source||'Manual')}</div><div class="small">${esc(l.notes||'')}</div></div><button class="secondary btnsm" onclick="editRun('${l.id}')">Edit</button><button class="danger btnsm" onclick="deleteRun('${l.id}')">Delete</button></div>`).join(''):'<div class="empty">No workouts logged yet.</div>'}</div>`}
+function activities(){let logs=allRuns().sort((a,b)=>b.date.localeCompare(a.date));return `<h1>Runs & Garmin uploads</h1><p class="muted">Import FIT, TCX, GPX or Garmin activity CSV exports. Review parsed details before saving. No Garmin login or automatic cloud sync is included.</p><div class="card"><h2>Import a workout file</h2><input id="upload" type="file" accept=".fit,.tcx,.gpx,.csv,application/xml,text/csv" onchange="handleFile(this.files[0])"><div class="small muted">FIT summary extraction supports standard Garmin FIT activity/session fields; unusual files may require manual correction. GPX usually lacks total duration and heart-rate summaries unless extensions are present.</div><div class="actions"><button class="primary" onclick="showLog()">+ Log run manually</button></div></div><div class="card"><h2>Run history</h2>${logs.length?logs.map(l=>`<div class="workout"><div class="body"><button class="secondary btnsm" onclick="showActivity(this.dataset.id)" data-id="${esc(l.id)}">${dateISO(l.date)} · ${fmt(l.distance)} mi · View details</button><div class="muted small">${l.duration||'—'} · ${l.hr||'—'} avg HR · RPE ${l.rpe||'—'}/10 · Pain ${l.pain??'—'}/10 · ${esc(l.source||'Manual')}</div><div class="small">${esc(l.notes||'')}</div></div><button class="secondary btnsm" onclick="editRun('${l.id}')">Edit</button><button class="danger btnsm" onclick="deleteRun('${l.id}')">Delete</button></div>`).join(''):'<div class="empty">No workouts logged yet.</div>'}</div>`}
 const strengthLibrary={
  A:[
  {id:'calf',name:'Standing double-leg calf raise',sets:2,reps:'10',load:'Bodyweight',rest:'45–60 sec',cue:'Hold a counter, rise smoothly onto both toes, pause, lower slowly. Stop if outer-ankle pain develops.',link:'standing calf raise exercise'},
@@ -40,6 +40,39 @@ function settings(){return `<h1>Settings & backup</h1><div class="card"><h2>Race
 function modal(html){document.getElementById('dialogBody').innerHTML=html;document.getElementById('dialog').showModal()}
 function showLog(date=today(),workoutId='',existing=null){let l=existing||{};modal(`<h2>${existing?'Edit':'Record'} run</h2><form id="runForm" onsubmit="saveRun(event,'${workoutId}','${l.id||''}')"><div class="formgrid"><label>Date<input name="date" type="date" required value="${esc(l.date||date)}"></label><label>Distance (miles)<input name="distance" type="number" step="0.01" min="0" required value="${esc(l.distance||'')}"></label><label>Duration (hh:mm:ss)<input name="duration" placeholder="0:55:31" value="${esc(l.duration||'')}"></label><label>Average HR<input name="hr" type="number" min="0" max="240" value="${esc(l.hr||'')}"></label><label>RPE (1–10)<input name="rpe" type="number" min="1" max="10" value="${esc(l.rpe??'')}"></label><label>Pain (0–10)<input name="pain" type="number" min="0" max="10" value="${esc(l.pain??'')}"></label></div><label>Notes / pain location<textarea name="notes">${esc(l.notes||'')}</textarea></label><label>Source<input name="source" value="${esc(l.source||'Manual')}"></label><button class="primary" type="submit">Save run</button></form>`)}
 function saveRun(e,workoutId,id){e.preventDefault();let f=Object.fromEntries(new FormData(e.target).entries());let original=id?state.logs.find(x=>x.id===id):null;let l={...(original||{}),...f,type:'run',id:id||('run-'+Date.now()+'-'+Math.random().toString(36).slice(2,6)),distance:Number(f.distance),hr:Number(f.hr)||null,rpe:f.rpe===''?null:Number(f.rpe),pain:f.pain===''?null:Number(f.pain)};if(id)state.logs=state.logs.filter(x=>x.id!==id);state.logs.push(l);let matches=Object.values(state.weeks).flatMap(w=>w.workouts).filter(x=>x.type==='run'&&x.date===l.date);let match=matches.find(x=>x.id===workoutId)||matches.find(x=>!x.done);if(match)match.done=true;save().then(()=>{document.getElementById('dialog').close();view='Activities';render()})}
+function runPace(duration,distance){
+ const parts=String(duration||'').trim().split(':').map(Number);
+ const miles=Number(distance);
+ if(!Number.isFinite(miles)||miles<=0||parts.length<2||parts.length>3||parts.some(n=>!Number.isFinite(n)||n<0))return '—';
+ const seconds=parts.length===3?parts[0]*3600+parts[1]*60+parts[2]:parts[0]*60+parts[1];
+ if(parts.slice(1).some(n=>n>=60)||seconds<=0)return '—';
+ const pace=Math.round(seconds/miles);
+ return Math.floor(pace/60)+':'+String(pace%60).padStart(2,'0')+' /mi';
+}
+function weeklyTrainingBrief(){
+ const start=weekStart(currentIndex()),end=plus(start,7);
+ const runs=allRuns().filter(r=>r.date>=start&&r.date<end);
+ const miles=runs.reduce((n,r)=>n+(Number(r.distance)||0),0);
+ const pain=runs.filter(r=>r.pain!==null&&r.pain!==undefined&&r.pain!=='').map(r=>Number(r.pain)).filter(Number.isFinite);
+ const rpe=runs.filter(r=>r.rpe!==null&&r.rpe!==undefined&&r.rpe!=='').map(r=>Number(r.rpe)).filter(Number.isFinite);
+ const note=pain.some(n=>n>=3)?'You logged pain of 3/10 or higher this week. Review symptoms before increasing training load.':rpe.some(n=>n>=8)?'At least one run felt very hard (RPE 8+). Consider recovery before another demanding session.':runs.length?'Keep recording effort and discomfort after each run to make your training trends more useful.':'Your next run will start this week’s training summary.';
+ return '<div class="card"><h2>This week at a glance</h2><p class="muted small">Based on runs saved on this device · '+start+' to '+plus(start,6)+'</p><div class="grid"><div><div class="muted small">Runs</div><div class="stat">'+runs.length+'</div></div><div><div class="muted small">Mileage</div><div class="stat">'+fmt(miles)+'</div></div><div><div class="muted small">Highest logged pain</div><div class="stat">'+(pain.length?Math.max(...pain)+'/10':'—')+'</div></div></div><p>'+esc(note)+'</p></div>';
+}
+function showActivity(id){
+ const l=state.logs.find(x=>x.id===id);if(!l)return;
+ const val=(v,fallback='—')=>v===null||v===undefined||v===''?fallback:esc(String(v));
+ const detail='<h2>'+esc(l.name||'Run details')+'</h2><p class="muted small">'+dateISO(l.date)+' · '+esc(l.source||'Manual')+'</p>'+
+ '<div class="grid"><div><div class="muted small">Distance</div><div class="stat">'+fmt(l.distance)+' <span class="small">mi</span></div></div>'+
+ '<div><div class="muted small">Duration</div><div class="stat" style="font-size:19px">'+val(l.duration)+'</div></div>'+
+ '<div><div class="muted small">Avg HR</div><div class="stat">'+val(l.hr)+'</div></div></div><p class="muted small">Average pace: '+runPace(l.duration,l.distance)+'</p>'+
+ '<div class="grid" style="margin-top:14px"><div><div class="muted small">Effort (RPE)</div><div class="stat">'+val(l.rpe)+'/10</div></div>'+
+ '<div><div class="muted small">Pain</div><div class="stat">'+val(l.pain)+'/10</div></div></div>'+
+ '<h3>Training notes</h3><p>'+esc(l.notes||'No notes yet. Add how the run felt to help guide future training.')+'</p>'+
+ '<p class="small muted">These details are saved on this device. Cross-device syncing is not active yet.</p>'+
+ '<div class="actions"><button class="primary" id="activityEdit">Edit effort, pain & notes</button></div>';
+ modal(detail);
+ document.getElementById('activityEdit').addEventListener('click',()=>{document.getElementById('dialog').close();editRun(id)});
+}
 function editRun(id){showLog(undefined,'',state.logs.find(x=>x.id===id))}function deleteRun(id){if(!confirm('Delete this run?'))return;state.logs=state.logs.filter(x=>x.id!==id);save().then(render)}
 function showStrength(date=today(),workoutId='',which=''){
  if(!which){let match=Object.values(state.weeks).flatMap(w=>w.workouts).find(x=>x.id===workoutId);which=match?.title?.includes('B')?'B':'A'}
@@ -145,6 +178,14 @@ settings=function(){
    .replace('<div class="card"><h2>About Garmin sync</h2><p>This version supports manual file uploads, not automatic Garmin Connect account synchronization. A hosted backend and authorized integration (for example via Intervals.icu) would be required for secure automatic syncing across devices.</p></div>','');
 };
 // Personal running milestones: read-only, calculated from locally saved runs.
+function distanceMilestoneHistory(runs){
+ const thresholds=[5,10,13.1,15,20,26.2,31.07];
+ const ordered=runs.filter(r=>/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(r.date||'')&&Number.isFinite(Number(r.distance))&&Number(r.distance)>0).slice().sort((a,b)=>a.date.localeCompare(b.date));
+ return thresholds.map(distance=>{
+  const first=ordered.find(r=>Number(r.distance)>=distance);
+  return {distance,date:first?first.date:null,runId:first?first.id:null};
+ });
+}
 const previousDashboard=dashboard;
 dashboard=function(){
  const base=previousDashboard();
@@ -152,10 +193,13 @@ dashboard=function(){
  const total=runs.reduce((sum,r)=>sum+Number(r.distance),0);
  const longest=runs.reduce((best,r)=>Number(r.distance)>Number(best.distance||0)?r:best,{distance:0});
  const milestones=[5,10,13.1,15,20,26.2,31.07];
- const reached=milestones.filter(mi=>Number(longest.distance)>=mi);
+ const history=distanceMilestoneHistory(runs);
+ const reached=history.filter(m=>m.date);
  const next=milestones.find(mi=>Number(longest.distance)<mi);
  const card='<div class="card"><h2>Your running story</h2><p class="muted small">A personal snapshot based on runs saved in this browser. Older runs not imported here are not included.</p><div class="grid"><div><div class="muted small">Miles recorded</div><div class="stat">'+fmt(total)+'</div></div><div><div class="muted small">Longest run</div><div class="stat">'+fmt(longest.distance)+' <span class="small">mi</span></div></div><div><div class="muted small">Milestones reached</div><div class="stat">'+reached.length+'</div></div></div><p class="small muted">'+(next?'Next distance milestone: '+fmt(next)+' miles':'All listed distance milestones reached!')+'</p></div>';
- return base+card;
+ const historyCard='<div class="card"><h2>Previous distance milestones</h2><p class="muted small">First qualifying run found in your saved activity history. If older Garmin runs are missing, these dates may not be your true first achievements.</p>'+
+ history.map(m=>'<div class="workout"><div class="body"><strong>'+fmt(m.distance)+' miles</strong><div class="small muted">'+(m.date?'First recorded: '+dateISO(m.date):'Not yet recorded in this app')+'</div></div>'+(m.runId?'<button class="secondary btnsm" data-id="'+esc(m.runId)+'" onclick="showActivity(this.dataset.id)">View run</button>':'')+'</div>').join('')+'</div>';
+ return base+weeklyTrainingBrief()+card+historyCard;
 };
 const previousActivities=activities;
 activities=function(){
