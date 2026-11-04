@@ -53,7 +53,7 @@ function showActivity(id){
  '<p class="small muted">These details are saved on this device. Cross-device syncing is not active yet.</p>'+
  '<div class="actions"><button class="primary" id="activityEdit">Edit effort, pain & notes</button></div>';
  modal(detail);
- document.getElementById('activityEdit').addEventListener('click',()=>editRun(id));
+ document.getElementById('activityEdit').addEventListener('click',()=>{document.getElementById('dialog').close();editRun(id)});
 }
 function editRun(id){showLog(undefined,'',state.logs.find(x=>x.id===id))}function deleteRun(id){if(!confirm('Delete this run?'))return;state.logs=state.logs.filter(x=>x.id!==id);save().then(render)}
 function showStrength(date=today(),workoutId='',which=''){
