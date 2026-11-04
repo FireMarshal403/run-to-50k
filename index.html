@@ -180,7 +180,7 @@ settings=function(){
 // Personal running milestones: read-only, calculated from locally saved runs.
 function distanceMilestoneHistory(runs){
  const thresholds=[5,10,13.1,15,20,26.2,31.07];
- const ordered=runs.filter(r=>/^\\d{4}-\\d{2}-\\d{2}$/.test(r.date||'')&&Number.isFinite(Number(r.distance))&&Number(r.distance)>0).slice().sort((a,b)=>a.date.localeCompare(b.date));
+ const ordered=runs.filter(r=>/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(r.date||'')&&Number.isFinite(Number(r.distance))&&Number(r.distance)>0).slice().sort((a,b)=>a.date.localeCompare(b.date));
  return thresholds.map(distance=>{
   const first=ordered.find(r=>Number(r.distance)>=distance);
   return {distance,date:first?first.date:null,runId:first?first.id:null};
