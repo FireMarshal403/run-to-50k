@@ -178,6 +178,14 @@ settings=function(){
    .replace('<div class="card"><h2>About Garmin sync</h2><p>This version supports manual file uploads, not automatic Garmin Connect account synchronization. A hosted backend and authorized integration (for example via Intervals.icu) would be required for secure automatic syncing across devices.</p></div>','');
 };
 // Personal running milestones: read-only, calculated from locally saved runs.
+function distanceMilestoneHistory(runs){
+ const thresholds=[5,10,13.1,15,20,26.2,31.07];
+ const ordered=runs.filter(r=>/^\\d{4}-\\d{2}-\\d{2}$/.test(r.date||'')&&Number.isFinite(Number(r.distance))&&Number(r.distance)>0).slice().sort((a,b)=>a.date.localeCompare(b.date));
+ return thresholds.map(distance=>{
+  const first=ordered.find(r=>Number(r.distance)>=distance);
+  return {distance,date:first?first.date:null,runId:first?first.id:null};
+ });
+}
 const previousDashboard=dashboard;
 dashboard=function(){
  const base=previousDashboard();
@@ -185,10 +193,13 @@ dashboard=function(){
  const total=runs.reduce((sum,r)=>sum+Number(r.distance),0);
  const longest=runs.reduce((best,r)=>Number(r.distance)>Number(best.distance||0)?r:best,{distance:0});
  const milestones=[5,10,13.1,15,20,26.2,31.07];
- const reached=milestones.filter(mi=>Number(longest.distance)>=mi);
+ const history=distanceMilestoneHistory(runs);
+ const reached=history.filter(m=>m.date);
  const next=milestones.find(mi=>Number(longest.distance)<mi);
  const card='<div class="card"><h2>Your running story</h2><p class="muted small">A personal snapshot based on runs saved in this browser. Older runs not imported here are not included.</p><div class="grid"><div><div class="muted small">Miles recorded</div><div class="stat">'+fmt(total)+'</div></div><div><div class="muted small">Longest run</div><div class="stat">'+fmt(longest.distance)+' <span class="small">mi</span></div></div><div><div class="muted small">Milestones reached</div><div class="stat">'+reached.length+'</div></div></div><p class="small muted">'+(next?'Next distance milestone: '+fmt(next)+' miles':'All listed distance milestones reached!')+'</p></div>';
- return base+weeklyTrainingBrief()+card;
+ const historyCard='<div class="card"><h2>Previous distance milestones</h2><p class="muted small">First qualifying run found in your saved activity history. If older Garmin runs are missing, these dates may not be your true first achievements.</p>'+
+ history.map(m=>'<div class="workout"><div class="body"><strong>'+fmt(m.distance)+' miles</strong><div class="small muted">'+(m.date?'First recorded: '+dateISO(m.date):'Not yet recorded in this app')+'</div></div>'+(m.runId?'<button class="secondary btnsm" data-id="'+esc(m.runId)+'" onclick="showActivity(this.dataset.id)">View run</button>':'')+'</div>').join('')+'</div>';
+ return base+weeklyTrainingBrief()+card+historyCard;
 };
 const previousActivities=activities;
 activities=function(){
