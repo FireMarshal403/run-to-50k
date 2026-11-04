@@ -40,13 +40,31 @@ function settings(){return `<h1>Settings & backup</h1><div class="card"><h2>Race
 function modal(html){document.getElementById('dialogBody').innerHTML=html;document.getElementById('dialog').showModal()}
 function showLog(date=today(),workoutId='',existing=null){let l=existing||{};modal(`<h2>${existing?'Edit':'Record'} run</h2><form id="runForm" onsubmit="saveRun(event,'${workoutId}','${l.id||''}')"><div class="formgrid"><label>Date<input name="date" type="date" required value="${esc(l.date||date)}"></label><label>Distance (miles)<input name="distance" type="number" step="0.01" min="0" required value="${esc(l.distance||'')}"></label><label>Duration (hh:mm:ss)<input name="duration" placeholder="0:55:31" value="${esc(l.duration||'')}"></label><label>Average HR<input name="hr" type="number" min="0" max="240" value="${esc(l.hr||'')}"></label><label>RPE (1–10)<input name="rpe" type="number" min="1" max="10" value="${esc(l.rpe??'')}"></label><label>Pain (0–10)<input name="pain" type="number" min="0" max="10" value="${esc(l.pain??'')}"></label></div><label>Notes / pain location<textarea name="notes">${esc(l.notes||'')}</textarea></label><label>Source<input name="source" value="${esc(l.source||'Manual')}"></label><button class="primary" type="submit">Save run</button></form>`)}
 function saveRun(e,workoutId,id){e.preventDefault();let f=Object.fromEntries(new FormData(e.target).entries());let original=id?state.logs.find(x=>x.id===id):null;let l={...(original||{}),...f,type:'run',id:id||('run-'+Date.now()+'-'+Math.random().toString(36).slice(2,6)),distance:Number(f.distance),hr:Number(f.hr)||null,rpe:f.rpe===''?null:Number(f.rpe),pain:f.pain===''?null:Number(f.pain)};if(id)state.logs=state.logs.filter(x=>x.id!==id);state.logs.push(l);let matches=Object.values(state.weeks).flatMap(w=>w.workouts).filter(x=>x.type==='run'&&x.date===l.date);let match=matches.find(x=>x.id===workoutId)||matches.find(x=>!x.done);if(match)match.done=true;save().then(()=>{document.getElementById('dialog').close();view='Activities';render()})}
+function runPace(duration,distance){
+ const parts=String(duration||'').trim().split(':').map(Number);
+ const miles=Number(distance);
+ if(!Number.isFinite(miles)||miles<=0||parts.length<2||parts.length>3||parts.some(n=>!Number.isFinite(n)||n<0))return '—';
+ const seconds=parts.length===3?parts[0]*3600+parts[1]*60+parts[2]:parts[0]*60+parts[1];
+ if(parts.slice(1).some(n=>n>=60)||seconds<=0)return '—';
+ const pace=Math.round(seconds/miles);
+ return Math.floor(pace/60)+':'+String(pace%60).padStart(2,'0')+' /mi';
+}
+function weeklyTrainingBrief(){
+ const start=weekStart(currentIndex()),end=plus(start,7);
+ const runs=allRuns().filter(r=>r.date>=start&&r.date<end);
+ const miles=runs.reduce((n,r)=>n+(Number(r.distance)||0),0);
+ const pain=runs.filter(r=>r.pain!==null&&r.pain!==undefined&&r.pain!=='').map(r=>Number(r.pain)).filter(Number.isFinite);
+ const rpe=runs.filter(r=>r.rpe!==null&&r.rpe!==undefined&&r.rpe!=='').map(r=>Number(r.rpe)).filter(Number.isFinite);
+ const note=pain.some(n=>n>=3)?'You logged pain of 3/10 or higher this week. Review symptoms before increasing training load.':rpe.some(n=>n>=8)?'At least one run felt very hard (RPE 8+). Consider recovery before another demanding session.':runs.length?'Keep recording effort and discomfort after each run to make your training trends more useful.':'Your next run will start this week’s training summary.';
+ return '<div class="card"><h2>This week at a glance</h2><p class="muted small">Based on runs saved on this device · '+start+' to '+plus(start,6)+'</p><div class="grid"><div><div class="muted small">Runs</div><div class="stat">'+runs.length+'</div></div><div><div class="muted small">Mileage</div><div class="stat">'+fmt(miles)+'</div></div><div><div class="muted small">Highest logged pain</div><div class="stat">'+(pain.length?Math.max(...pain)+'/10':'—')+'</div></div></div><p>'+esc(note)+'</p></div>';
+}
 function showActivity(id){
  const l=state.logs.find(x=>x.id===id);if(!l)return;
  const val=(v,fallback='—')=>v===null||v===undefined||v===''?fallback:esc(String(v));
  const detail='<h2>'+esc(l.name||'Run details')+'</h2><p class="muted small">'+dateISO(l.date)+' · '+esc(l.source||'Manual')+'</p>'+
  '<div class="grid"><div><div class="muted small">Distance</div><div class="stat">'+fmt(l.distance)+' <span class="small">mi</span></div></div>'+
  '<div><div class="muted small">Duration</div><div class="stat" style="font-size:19px">'+val(l.duration)+'</div></div>'+
- '<div><div class="muted small">Avg HR</div><div class="stat">'+val(l.hr)+'</div></div></div>'+
+ '<div><div class="muted small">Avg HR</div><div class="stat">'+val(l.hr)+'</div></div></div><p class="muted small">Average pace: '+runPace(l.duration,l.distance)+'</p>'+
  '<div class="grid" style="margin-top:14px"><div><div class="muted small">Effort (RPE)</div><div class="stat">'+val(l.rpe)+'/10</div></div>'+
  '<div><div class="muted small">Pain</div><div class="stat">'+val(l.pain)+'/10</div></div></div>'+
  '<h3>Training notes</h3><p>'+esc(l.notes||'No notes yet. Add how the run felt to help guide future training.')+'</p>'+
@@ -170,7 +188,7 @@ dashboard=function(){
  const reached=milestones.filter(mi=>Number(longest.distance)>=mi);
  const next=milestones.find(mi=>Number(longest.distance)<mi);
  const card='<div class="card"><h2>Your running story</h2><p class="muted small">A personal snapshot based on runs saved in this browser. Older runs not imported here are not included.</p><div class="grid"><div><div class="muted small">Miles recorded</div><div class="stat">'+fmt(total)+'</div></div><div><div class="muted small">Longest run</div><div class="stat">'+fmt(longest.distance)+' <span class="small">mi</span></div></div><div><div class="muted small">Milestones reached</div><div class="stat">'+reached.length+'</div></div></div><p class="small muted">'+(next?'Next distance milestone: '+fmt(next)+' miles':'All listed distance milestones reached!')+'</p></div>';
- return base+card;
+ return base+weeklyTrainingBrief()+card;
 };
 const previousActivities=activities;
 activities=function(){
